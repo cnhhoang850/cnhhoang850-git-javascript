@@ -43,5 +43,8 @@ function readGitBlob(SHA) {
   let dataUncompressed = zlib.unzipSync(data);
   let nullByteIndex = dataUncompressed.indexOf("\0");
   console.log(dataUncompressed.toString().slice(nullByteIndex + 1));
-  return dataUncompressed.toString().slice(nullByteIndex + 1);
+  return dataUncompressed
+    .toString()
+    .slice(nullByteIndex + 1)
+    .replace(/\n+/gm, "");
 }
