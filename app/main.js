@@ -13,7 +13,7 @@ switch (command) {
     createGitDirectory();
     break;
   case "cat-file":
-    readGitBlob(process.argv[3]);
+    readGitBlob(process.argv[4]);
     break;
   default:
     throw new Error(`Unknown command ${command}`);
