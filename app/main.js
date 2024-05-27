@@ -11,7 +11,8 @@ switch (command) {
     createGitDirectory();
     break;
   case "cat-file":
-    readGitBlob(process.argv[4]);
+    let text = readGitBlob(process.argv[4]);
+    process.stdout.write(text);
     break;
   default:
     throw new Error(`Unknown command ${command}`);
@@ -42,7 +43,6 @@ function readGitBlob(SHA) {
   let data = fs.readFileSync(blobPath);
   let dataUncompressed = zlib.unzipSync(data);
   let nullByteIndex = dataUncompressed.indexOf("\0");
-  console.log(dataUncompressed.toString().slice(nullByteIndex + 1));
   return dataUncompressed
     .toString()
     .slice(nullByteIndex + 1)
