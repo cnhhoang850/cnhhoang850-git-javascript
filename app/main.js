@@ -46,5 +46,5 @@ function readGitBlob(SHA) {
   return dataUncompressed
     .toString()
     .slice(nullByteIndex + 1)
-    .replace(/[\n]+/gm, "");
+    .replace(/(\r\n|\n|\r)/gm, "");
 }
