@@ -66,6 +66,7 @@ function hashObject(write, fileName) {
     const blobName = hash.slice(3);
     const blobFolder = path.resolve(".git", "objects", header);
     const blobPath = path.resolve(blobFolder, blobName);
+    console.log(blobPath, blobFolder, hash, blobName, header)
 
     if (!fs.existsSync(blobFolder)) {
       fs.mkdirSync(blobFolder)
