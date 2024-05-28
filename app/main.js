@@ -56,22 +56,21 @@ function createGitDirectory() {
   console.log("Initialized git directory");
 }
 function hashObject(write, fileName) {
-  const hash = sha1(fileName);
-  console.log(hash);
+  const filePath = path.resolve(fileName);
+  let data = fs.readFileSync(filePath).toString().replace(/(\r\n|\n|\r)/gm, "");
+  data = `blob ${data.length}\0` + data
+  const hash = sha1(data);
 
   if (write) {
     const header = hash.slice(0, 2);
     const blobName = hash.slice(3);
     const blobFolder = path.resolve(".git", "objects", header);
     const blobPath = path.resolve(blobFolder, blobName);
-    const filePath = path.resolve(fileName);
 
     if (!fs.existsSync(blobFolder)) {
       fs.mkdirSync(blobFolder)
     }
-    let data = fs.readFileSync(filePath).toString().replace(/(\r\n|\n|\r)/gm, "");
-    data = `blob ${data.length}\0` + data
-    console.log(data)
+
     let dataCompressed = zlib.gzipSync(data);
     fs.writeFileSync(blobPath, dataCompressed);
   }
