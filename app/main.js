@@ -41,7 +41,6 @@ switch (command) {
     process.stdout.write(hash);
     break;
   case "ls-tree":
-    let result;
     switch (argvs.length) {
       case 1:
         result = lsTree(argvs[0]);
@@ -49,41 +48,67 @@ switch (command) {
       case 2:
         result = lsTree(argvs[1]);
         break;
-      default:
-        throw new Error(`Unknown command ${[...argvs]}`);
     }
-    process.stdout.write(result);
+    break;
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
-function lsTree() {
-  const isNameOnly = process.argv[3];
-  let hash = "";
-  if (isNameOnly === "--name-only") {
-    //display the name only
-    hash = process.argv[4];
-  } else {
-    hash = process.argv[3];
-  }
+function lsTree(hash) {
+  const path = require("path");
+  const fs = require("fs");
+  const zlib = require("zlib");
+
   const dirName = hash.slice(0, 2);
   const fileName = hash.slice(2);
   const objectPath = path.join(".git", "objects", dirName, fileName);
+
+  if (!fs.existsSync(objectPath)) {
+    throw new Error("Object path does not exist");
+  }
+
   const dataFromFile = fs.readFileSync(objectPath);
-  //decrypt the data from the file
-  const inflated = zlib.inflateSync(dataFromFile);
-  //notice before encrypting the data what we do was we encrypt
-  //blob length/x00 so to get the previous string back what we need to do is split with /xoo
-  const enteries = inflated.toString("utf-8").split("\x00");
-  //enteries will be [blob length/x00, actual_file_content]
-  const dataFromTree = enteries.slice(1);
-  const names = dataFromTree
-    .filter((line) => line.includes(" "))
-    .map((line) => line.split(" ")[1]);
-  const namesString = names.join("\n");
-  const response = namesString.concat("\n");
-  //this is the regex pattern that tells to replace multiple global \n with single \n
-  process.stdout.write(response.replace(/\n\n/g, "\n"));
+
+  // Decompress the data from the file using zlib
+  const decompressedData = zlib.inflateSync(dataFromFile);
+
+  // Convert the buffer to a string while preserving the byte structure
+  let dataStr = decompressedData.toString("binary");
+
+  // Find the end of the object header ("tree <size>\0")
+  let nullByteIndex = dataStr.indexOf("\0");
+  dataStr = dataStr.slice(nullByteIndex + 1);
+
+  const entries = [];
+
+  while (dataStr.length > 0) {
+    // Extract mode
+    const spaceIndex = dataStr.indexOf(" ");
+    if (spaceIndex === -1) break; // Invalid format
+    const mode = dataStr.slice(0, spaceIndex);
+    dataStr = dataStr.slice(spaceIndex + 1);
+
+    // Extract name
+    const nullIndex = dataStr.indexOf("\0");
+    if (nullIndex === -1) break; // Invalid format
+    const name = dataStr.slice(0, nullIndex);
+    if (!name) continue; // skip empty names
+    dataStr = dataStr.slice(nullIndex + 1); // Move past the null byte
+
+    // Extract SHA-1 hash
+    const sha = dataStr.slice(0, 20);
+    dataStr = dataStr.slice(20);
+
+    entries.push(name);
+  }
+
+  // Output the names of the files and directories
+  const response = entries.join("\n"); // Removed the trailing newline for better handling
+  if (response) {
+    process.stdout.write(response + "\n"); // Append newline here
+  } else {
+    throw new Error("No valid entries found");
+  }
 }
 
 function createGitDirectory() {
