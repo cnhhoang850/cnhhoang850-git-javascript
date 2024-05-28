@@ -21,8 +21,6 @@ switch (command) {
       case 2:
         text = readGitBlob(argvs[1]);
         break;
-      default:
-        throw new Error(`Unknown command ${[...argvs]}`);
     }
     process.stdout.write(text);
     break;
@@ -35,8 +33,6 @@ switch (command) {
       case 2:
         hash = hashObject(true, argvs[1]);
         break;
-      default:
-        throw new Error(`Unknown command ${[...argvs]}`);
     }
     process.stdout.write(hash);
     break;
@@ -50,15 +46,64 @@ switch (command) {
         break;
     }
     break;
+  case "write-tree":
+    let treeHash = writeTree(process.cwd());
+    process.stdout.write(treeHash);
+    break;
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
-function lsTree(hash) {
-  const path = require("path");
-  const fs = require("fs");
-  const zlib = require("zlib");
+function writeTree(path) {
+  // Tree <size>\0
+  // mode name\020bytesha
+  // Enumerate all current dirs and files in path
+  const itemsInPath = fs.readdirSync(path);
+  const contents = [];
 
+  for (const item of itemsInPath) {
+    const itemPath = path.join(path, item);
+    const stat = fs.statSync(itemPath);
+    let hashContent;
+    let itemHash;
+
+    if (stat.isFile()) {
+      // blobs
+      itemHash = hashObject(true, item);
+      hashContent = `100644 ${item}\0${itemHash.slice(0, 20)}`;
+    } else if (stat.isDirectory()) {
+      // trees
+      itemHash = writeTree(itemPath);
+      hashContent = `040000 ${item}\0${itemHash.slice(0, 20)}`;
+    }
+
+    contents.push(hashContent);
+  }
+  // write content
+  let size = contents.reduce((acc, curr) => {
+    acc + curr.length;
+  }, 0);
+  const header = `tree ${size}\0`;
+  const treeContent =
+    contents.length > 0 ? [header, ...contents].join("\n") : header;
+  const compressedContent = zlib.deflateSync(treeContent);
+  const treeHash = sha1(treeContent);
+  const treeFolder = path.resolve(".git", "objects", treeHash.slice(0, 2));
+  const treePath = path.resolve(
+    ".git",
+    "objects",
+    treeFolder,
+    treeHash.slice(2),
+  );
+
+  fs.mkdirSync(blobFolder);
+  fs.writeFileSync(treePath, compressedContent);
+  // return treeHash
+
+  return treeHash;
+}
+
+function lsTree(hash) {
   const dirName = hash.slice(0, 2);
   const fileName = hash.slice(2);
   const objectPath = path.join(".git", "objects", dirName, fileName);
@@ -124,6 +169,7 @@ function createGitDirectory() {
   );
   console.log("Initialized git directory");
 }
+
 function hashObject(write, fileName) {
   const filePath = path.resolve(fileName);
   let data = fs
