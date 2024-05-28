@@ -11,8 +11,17 @@ switch (command) {
     createGitDirectory();
     break;
   case "cat-file":
-    let text = readGitBlob(process.argv[4]);
+    let argvs = process.argv.slice(3);
+    let text;
+    switch (argvs.length) {
+      case 1:
+        text = readGitBlob(argvs[0]);
+      case 2:
+        text = readGitBlob(argvs[1]);
+    }
     process.stdout.write(text);
+    break;
+  case "hash-object":
     break;
   default:
     throw new Error(`Unknown command ${command}`);
