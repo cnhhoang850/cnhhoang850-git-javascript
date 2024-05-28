@@ -63,16 +63,15 @@ function hashObject(write, fileName) {
 
   if (write) {
     const header = hash.slice(0, 2);
-    const blobName = hash.slice(3);
+    const blobName = hash.slice(2);
     const blobFolder = path.resolve(".git", "objects", header);
     const blobPath = path.resolve(blobFolder, blobName);
-    console.log(blobPath, blobFolder, hash, blobName, header)
 
     if (!fs.existsSync(blobFolder)) {
       fs.mkdirSync(blobFolder)
     }
 
-    let dataCompressed = zlib.gzipSync(data);
+    let dataCompressed = zlib.deflateSync(data);
     fs.writeFileSync(blobPath, dataCompressed);
   }
 
