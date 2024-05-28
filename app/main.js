@@ -22,7 +22,7 @@ switch (command) {
         text = readGitBlob(argvs[1]);
         break;
       default:
-        throw new Erro(`Unknown command ${[...argvs]}`);
+        throw new Error(`Unknown command ${[...argvs]}`);
     }
     process.stdout.write(text);
     break;
@@ -35,15 +35,55 @@ switch (command) {
       case 2:
         hash = hashObject(true, argvs[1]);
         break;
+      default:
+        throw new Error(`Unknown command ${[...argvs]}`);
     }
-    console.log(hash);
+    process.stdout.write(hash);
     break;
+  case "ls-tree":
+    let result;
+    switch (argvs.length) {
+      case 1:
+        result = lsTree(argvs[0]);
+        break;
+      case 2:
+        result = lsTree(argvs[1]);
+        break;
+      default:
+        throw new Error(`Unknown command ${[...argvs]}`);
+    }
+    process.stdout.write(result);
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
+function lsTree() {
+  const flag = process.argv[3];
+  if (flag == "--name-only") {
+    const sha = process.argv[4];
+    const directory = sha.slice(0, 2);
+    const fileName = sha.slice(2);
+    const filePath = path.join(
+      __dirname,
+      ".git",
+      "objects",
+      directory,
+      fileName,
+    );
+    let inflatedContent = zlib
+      .inflateSync(fs.readFileSync(filePath))
+      .toString()
+      .split("\0");
+    let content = inflatedContent
+      .slice(1)
+      .filter((value) => value.includes(" "));
+    let names = content.map((value) => value.split(" ")[1]);
+    names.forEach((name) => process.stdout.write(`${name}\n`));
+  }
+}
+
 function createGitDirectory() {
-  fs.mkdirSync(path.join(process.cwd(), ".git"), { recursive: true});
+  fs.mkdirSync(path.join(process.cwd(), ".git"), { recursive: true });
   fs.mkdirSync(path.join(process.cwd(), ".git", "objects"), {
     recursive: true,
   });
@@ -57,8 +97,11 @@ function createGitDirectory() {
 }
 function hashObject(write, fileName) {
   const filePath = path.resolve(fileName);
-  let data = fs.readFileSync(filePath).toString().replace(/(\r\n|\n|\r)/gm, "");
-  data = `blob ${data.length}\0` + data
+  let data = fs
+    .readFileSync(filePath)
+    .toString()
+    .replace(/(\r\n|\n|\r)/gm, "");
+  data = `blob ${data.length}\0` + data;
   const hash = sha1(data);
 
   if (write) {
@@ -68,7 +111,7 @@ function hashObject(write, fileName) {
     const blobPath = path.resolve(blobFolder, blobName);
 
     if (!fs.existsSync(blobFolder)) {
-      fs.mkdirSync(blobFolder)
+      fs.mkdirSync(blobFolder);
     }
 
     let dataCompressed = zlib.deflateSync(data);
@@ -100,13 +143,3 @@ function readGitBlob(sha) {
     .slice(nullByteIndex + 1)
     .replace(/(\r\n|\n|\r)/gm, "");
 }
- 
-function trimString(string) {
-}
-
-
-
-
-
-
-
