@@ -47,45 +47,92 @@ switch (command) {
     }
     break;
   case "write-tree":
-    let treeHash = writeTree(process.cwd());
+    let treeHash = writeTree2("./");
     process.stdout.write(treeHash);
     break;
   default:
     throw new Error(`Unknown command ${command}`);
 }
 
-function writeTree(path) {
+function writeTree2(root) {
+  const filesAndDirs = fs
+    .readdirSync(root)
+    .filter((f) => f !== ".git" && f !== "main.js");
+  const entries = [];
+  for (const file of filesAndDirs) {
+    const fullPath = path.join(root, file);
+    if (fs.statSync(fullPath).isFile()) {
+      entries.push({
+        mode: 100644,
+        name: file,
+        hash: hashObject(true, fullPath),
+      });
+    } else {
+      entries.push({
+        mode: 40000,
+        name: file,
+        hash: writeTree2(path.join(root, file)),
+      });
+    }
+  }
+  const contents = entries.reduce((acc, { mode, name, hash }) => {
+    return Buffer.concat([
+      acc,
+      Buffer.from(`${mode} ${name}\0`),
+      Buffer.from(hash, "hex"),
+    ]);
+  }, Buffer.alloc(0));
+  const treeContents = Buffer.concat([
+    Buffer.from(`tree ${contents.length}\x00`),
+    contents,
+  ]);
+  const treeHash = sha1(treeContents);
+  fs.mkdirSync(path.join(root, ".git", "objects", treeHash.slice(0, 2)), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, ".git", "objects", treeHash.slice(0, 2), treeHash.slice(2)),
+    zlib.deflateSync(treeContents),
+  );
+  return treeHash;
+}
+
+function writeTree(root) {
   // Tree <size>\0
   // mode name\020bytesha
   // Enumerate all current dirs and files in path
-  const itemsInPath = fs.readdirSync(path);
+  const itemsInPath = fs.readdirSync(root);
   const contents = [];
 
   for (const item of itemsInPath) {
-    const itemPath = path.join(path, item);
+    const itemPath = path.join(root, item);
     const stat = fs.statSync(itemPath);
     let hashContent;
     let itemHash;
 
+    if (item == ".git") {
+      continue;
+    }
+
     if (stat.isFile()) {
       // blobs
-      itemHash = hashObject(true, item);
-      hashContent = `100644 ${item}\0${itemHash.slice(0, 20)}`;
+      itemHash = hashObject(true, itemPath);
+      hashContent = `100644 ${item}\0${Buffer.from(itemHash.slice(0, 20), "hex")}`;
     } else if (stat.isDirectory()) {
       // trees
       itemHash = writeTree(itemPath);
-      hashContent = `040000 ${item}\0${itemHash.slice(0, 20)}`;
+      hashContent = `40000 ${item}\0${Buffer.from(itemHash.slice(0, 20), "hex")}`;
     }
-
     contents.push(hashContent);
   }
   // write content
-  let size = contents.reduce((acc, curr) => {
-    acc + curr.length;
-  }, 0);
+  let size = contents.reduce((acc, curr) => acc + curr.length, 0);
+  // console.log("This is tree: ", root, size);
   const header = `tree ${size}\0`;
-  const treeContent =
-    contents.length > 0 ? [header, ...contents].join("\n") : header;
+  const contentBody = contents.reduce((acc, item) => {
+    return Buffer.concat([acc, Buffer.from(item)]);
+  }, Buffer.alloc(0));
+  const treeContent = Buffer.concat([Buffer.from(header), contentBody]);
   const compressedContent = zlib.deflateSync(treeContent);
   const treeHash = sha1(treeContent);
   const treeFolder = path.resolve(".git", "objects", treeHash.slice(0, 2));
@@ -96,7 +143,7 @@ function writeTree(path) {
     treeHash.slice(2),
   );
 
-  fs.mkdirSync(blobFolder);
+  fs.mkdirSync(treeFolder);
   fs.writeFileSync(treePath, compressedContent);
   // return treeHash
 
