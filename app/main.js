@@ -50,8 +50,81 @@ switch (command) {
     let treeHash = writeTree2("./");
     process.stdout.write(treeHash);
     break;
+  case "commit-tree":
+    let commitHash = commitObject(argvs[0], argvs[2], argvs[4]);
+    process.stdout.write(commitHash);
+    break;
   default:
     throw new Error(`Unknown command ${command}`);
+}
+
+// git commitTree <treSHA> -p <commitSHA> -m <message>
+
+function getFormattedUtcOffset() {
+  const date = new Date();
+  const offsetMinutes = -date.getTimezoneOffset();
+  const offsetHours = Math.abs(Math.floor(offsetMinutes / 60));
+  const offsetMinutesRemainder = Math.abs(offsetMinutes) % 60;
+  const sign = offsetMinutes < 0 ? "-" : "+";
+  const formattedOffset = `${sign}${offsetHours
+    .toString()
+    .padStart(2, "0")}${offsetMinutesRemainder.toString().padStart(2, "0")}`;
+  return formattedOffset;
+}
+function commitObject(tree_hash, commit_hash, message) {
+  let contents = Buffer.from("tree " + tree_hash + "\n");
+  if (commit_hash) {
+    contents = Buffer.concat([
+      contents,
+      Buffer.from("parent " + commit_hash + "\n"),
+    ]);
+  }
+  let seconds = new Date().getTime() / 1000;
+  const utcOffset = getFormattedUtcOffset();
+  contents = Buffer.concat([
+    contents,
+    Buffer.from(
+      "author " +
+        "harshit " +
+        "<harshit_chaudhary@mail.com> " +
+        seconds +
+        " " +
+        utcOffset +
+        "\n",
+    ),
+    Buffer.from(
+      "committer " +
+        "harshit " +
+        "<harshit_chaudhary@mail.com> " +
+        seconds +
+        " " +
+        utcOffset +
+        "\n",
+    ),
+    Buffer.from("\n"),
+    Buffer.from(message + "\n"),
+  ]);
+  let finalContent = Buffer.concat([
+    Buffer.from("commit " + contents.length + "\0"),
+    contents,
+  ]);
+  let new_object_path = crypto
+    .createHash("sha1")
+    .update(finalContent)
+    .digest("hex");
+  fs.mkdirSync(path.join(".git", "objects", new_object_path.slice(0, 2)), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(
+      ".git",
+      "objects",
+      new_object_path.slice(0, 2),
+      new_object_path.slice(2),
+    ),
+    zlib.deflateSync(finalContent),
+  );
+  return new_object_path;
 }
 
 function writeTree2(root) {
@@ -97,6 +170,7 @@ function writeTree2(root) {
   return treeHash;
 }
 
+// objects are always better than strings in processing variables
 function writeTree(root) {
   // Tree <size>\0
   // mode name\020bytesha
