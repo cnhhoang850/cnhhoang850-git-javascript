@@ -30,14 +30,159 @@ async function clone(url, dirName) {
     `0032want ${packHash}\n00000009done\n`,
     "utf8",
   );
-  const headers = { "Content-Type": "application/x-git-upload-pack-request" };
+  const headers = {
+    "Content-Type": "application/x-git-upload-pack-request",
+    "accept-encoding": "gzip,deflate",
+  };
   const packRes = await axios.post(url + git_pack_post_url, hashToSend, {
     headers,
+    responseType: "arraybuffer",
   });
   const packResData = packRes.data;
-  console.log(packResData);
+  let packFileContent = packResData.slice(20);
+  let [entries, content] = decodePackFile(packResData);
 
-  // get actual pack file
+  console.log(packResData.slice(0, 40), " THIS IS PACK RES NO SLICED");
+  console.log(packFileContent.slice(0, 40), " THIS IS PACK RES DATA");
+
+  const TYPE_CODES = {
+    1: "commit",
+    2: "tree",
+    3: "blob",
+    // Add other types as needed
+  };
+
+  let objects = {};
+  let seek = 0;
+  let count = 0;
+  let bshift = 4;
+  entries = entries.readUInt32BE(0);
+  // find entries objects in data
+  while (count != 300) {
+    count++;
+    let header = readObjectHeader(content, seek);
+    console.log(header);
+    seek = header.seek++;
+    if (header.obj_type > 0 && header.obj_type < 5) {
+      decompressBuffer(content.slice(seek))
+        .then((data) => {
+          console.log(
+            "Decompressed data:",
+            data.toString(),
+            "type",
+            header.obj_type,
+          );
+          objects[count] = { type: header.obj_type, data: data.toString() };
+
+          let decompressLength = 0;
+          while (decompressLength < data.length) {
+            seek++;
+            decompressLength++;
+          }
+        })
+        .catch((err) => {});
+    }
+  }
+}
+
+function readObjectHeader(content, seek) {
+  let byt = content[seek];
+  let obj_type = (byt & 112) >> 4; // Extracting bits 4-6 for type
+  let obj_size = byt & 0x0f; // Extracting bits 0-3 for initial size
+  seek++;
+  let bshift = 4;
+
+  // Read the size continuation bytes
+  while (byt > 128) {
+    byt = content[seek];
+    obj_size |= (byt & 0x7f) << bshift;
+    bshift += 7;
+    seek++;
+  }
+
+  return { obj_type, obj_size, seek };
+}
+
+function decompressBuffer(buffer) {
+  return new Promise((resolve, reject) => {
+    const zlibStream = zlib.createInflate();
+    let output = Buffer.alloc(0);
+
+    zlibStream.on("data", (chunk) => {
+      output = Buffer.concat([output, chunk]);
+      zlibStream.end();
+    });
+
+    zlibStream.on("end", () => {
+      resolve(output);
+    });
+
+    zlibStream.on("error", (err) => {
+      reject(err);
+    });
+
+    // Write the entire buffer to the zlib stream
+    zlibStream.write(buffer);
+    zlibStream.end();
+  });
+}
+
+function read_record(buffer, offset) {
+  const { type, size, newOffset } = read_record_header(buffer, offset);
+  const decompressedData = read_zlib_stream(buffer, newOffset, size);
+  return { recordType: TYPE_CODES[type], data: decompressedData };
+}
+
+function read_zlib_stream(buffer, offset, size) {
+  // Extract the compressed data
+  const compressedData = buffer.slice(offset, offset + size);
+
+  // Decompress the data
+  const decompressedData = zlib.inflateSync(compressedData);
+
+  return decompressedData;
+}
+
+function readVarIntLE(buffer, offset) {
+  let value = 0;
+  let shift = 0;
+  let byte;
+  let newOffset = offset;
+  do {
+    byte = buffer[newOffset++];
+    value |= (byte & 0x7f) << shift;
+    shift += 7;
+  } while (byte & 0x80);
+  return { value, newOffset };
+}
+
+function read_record_header(buffer, offset) {
+  const { value: byte, newOffset: sizeOffset } = readVarIntLE(buffer, offset);
+  const { value: size, newOffset } = readVarIntLE(buffer, sizeOffset);
+  const type = (byte >> 4) & 0x7;
+  return { type, size, newOffset };
+}
+
+function decodePackFile(data) {
+  console.log(Buffer.from(data));
+  const signatureData = Buffer.from(data.slice(7, 12));
+  console.log(signatureData.toString("utf8"));
+  const version = Buffer.from(data.slice(12, 16));
+  console.log(version.readUInt32BE(0), "THIS IS VERSION");
+  const entries = Buffer.from(data.slice(16, 20));
+  console.log(entries.readUInt32BE(0), "Entries count");
+  const content = Buffer.from(data.slice(20, data.length - 21));
+  const checkSum = data.slice(data.length - 20);
+  console.log(checkSum.toString("hex"), "legnth of hex", checkSum.length);
+  return [entries, content];
+}
+
+function readUInt32BE(buffer, offset) {
+  return buffer.readUInt32BE(offset);
+}
+
+function readUInt8(buffer, offset) {
+  return buffer.readUInt(8);
 }
 
 clone("https://github.com/cnhhoang850/better-nc-quoc-te", "ncqt");
