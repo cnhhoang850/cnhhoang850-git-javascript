@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const https = require("https");
 const axios = require("axios");
 
-clone("https://github.com/cnhhoang850/better-nc-quoc-te", "ncqt");
+clone("https://github.com/cnhhoang850/readify-anything", "ncqt");
 
 async function clone(url, dirName) {
   //  fs.mkdirSync(path.resolve(dirName));
@@ -20,7 +20,11 @@ async function clone(url, dirName) {
   const packHashData = packHashRes.data;
   const packHashDataArr = packHashData.split("\n");
   for (let item of packHashDataArr) {
-    if (item.includes("refs/heads/master") && item.includes("003f")) {
+    if (
+      (item.includes("refs/heads/master") ||
+        item.includes("refs/heads/main")) &&
+      item.includes("003")
+    ) {
       const tupple = item.split(" ");
       packHash = tupple[0].substring(4); // Use assignment instead of concatenation
       break; // Exit the loop once the hash is found
@@ -28,7 +32,10 @@ async function clone(url, dirName) {
   }
 
   // why 00000009done ?
-  const hashToSend = Buffer.from(`0032want ${packHash}\n00000009done\n`, "utf8");
+  const hashToSend = Buffer.from(
+    `0032want ${packHash}\n00000009done\n`,
+    "utf8",
+  );
   const headers = {
     "Content-Type": "application/x-git-upload-pack-request",
     "accept-encoding": "gzip,deflate",
@@ -38,28 +45,38 @@ async function clone(url, dirName) {
     responseType: "arraybuffer", // everything in buffer already
   });
 
+  // problem, not all data sent have the pack files at the same locations
+
   const packResData = packRes.data;
-  let data = packResData.slice(20, packResData.length - 20);
+  //console.log("THIS IS PACK RES DATA", packResData.toString());
+  let data = packResData.slice(20);
 
   entries = Buffer.from(packResData.slice(16, 20)).readUInt32BE(0);
-
   let types = {
     1: "commit",
     2: "tree",
     3: "blob",
   };
-  let [parsed_bytes, obj] = await read_pack_object(data, 0);
-  console.log("PARSED HOULD EQUAL 143", parsed_bytes);
-  let [par2, obj2] = await read_pack_object(data, 143);
-  let [par3, obj3] = await read_pack_object(data, 143 + 118);
-  let [par4, obj4] = await read_pack_object(data, 143 + 118 + 89 + 2);
-  let [par5, obj5] = await read_pack_object(data, 143 + 118 + 89 + 2 + 26);
-  let res5 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272);
-  let res6 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272 + 199);
-  let res7 = await read_pack_object(
-    data,
-    143 + 118 + 89 + 2 + 26 + 272 + 199 + 52,
-  );
+  //let [parsed_bytes, obj] = await read_pack_object(data, 0);
+  //console.log("PARSED HOULD EQUAL 143", parsed_bytes);
+  //let [par2, obj2] = await read_pack_object(data, 143);
+  //let [par3, obj3] = await read_pack_object(data, 143 + 118);
+  //let [par4, obj4] = await read_pack_object(data, 143 + 118 + 89 + 2);
+  //let [par5, obj5] = await read_pack_object(data, 143 + 118 + 89 + 2 + 26);
+  //let res5 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272);
+  //let res6 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272 + 199);
+  let i = 0;
+  let objs = [];
+  for (let count = 0; count < entries; count++) {
+    let [byte_read, obj] = await read_pack_object(data, i);
+    i += byte_read;
+    objs.push(obj);
+  }
+  console.log(`FOUND ${entries} ENTRIES`);
+  objs.forEach((e) => console.log(e));
+  console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
+  let checkSum = data.slice(data.length - 20).toString("hex");
+  console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${data.length}`);
 }
 
 async function read_pack_object(buffer, i) {
@@ -73,21 +90,28 @@ async function read_pack_object(buffer, i) {
   };
 
   let [parsed_bytes, type, size] = read_pack_header(buffer, i);
-  console.log(`Parsed ${parsed_bytes} bytes found type ${type} and size ${size}`);
+  //console.log(`Parsed ${parsed_bytes} bytes found type ${type} and size ${size}`,);
 
   i += parsed_bytes;
   //console.log(`Object starting at ${i} ${buffer[i]}`);
-  if (type < 5) {
+  if (type < 7 && type != 5) {
     const [gzip, used] = await decompressFile(buffer.slice(i), size);
     //console.log(gzip.toString(), `Next parsing location at: ${parsed_bytes}`);
-    console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
-    return [parsed_bytes + used, gzip.toString()];
+    //console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
+    return [
+      parsed_bytes + used,
+      { obj: gzip.toString(), type: TYPE_CODES[type] },
+    ];
   } else if (type == 7) {
+    // if delta refs then there will be a 20 bytes hash at the start
     let ref = buffer.slice(i, i + 20);
     parsed_bytes += 20;
     i += 20;
-    const [gzip, used] = await decompressFile(buffer.slice(i));
-    parsed_bytes += used;
+    let [gzip, used] = await decompressFile(buffer.slice(i), size);
+    return [
+      parsed_bytes + used,
+      { obj: gzip.toString(), type: type, ref: ref.toString("hex") },
+    ];
   }
 }
 
