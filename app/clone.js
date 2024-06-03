@@ -5,6 +5,8 @@ const crypto = require("crypto");
 const https = require("https");
 const axios = require("axios");
 
+clone("https://github.com/cnhhoang850/better-nc-quoc-te", "ncqt");
+
 async function clone(url, dirName) {
   //  fs.mkdirSync(path.resolve(dirName));
   //createGitDirectory(dirName);
@@ -26,166 +28,126 @@ async function clone(url, dirName) {
   }
 
   // why 00000009done ?
-  const hashToSend = Buffer.from(
-    `0032want ${packHash}\n00000009done\n`,
-    "utf8",
-  );
+  const hashToSend = Buffer.from(`0032want ${packHash}\n00000009done\n`, "utf8");
   const headers = {
     "Content-Type": "application/x-git-upload-pack-request",
     "accept-encoding": "gzip,deflate",
   };
   const packRes = await axios.post(url + git_pack_post_url, hashToSend, {
     headers,
-    responseType: "arraybuffer",
+    responseType: "arraybuffer", // everything in buffer already
   });
+
   const packResData = packRes.data;
-  let packFileContent = packResData.slice(20);
-  let [entries, content] = decodePackFile(packResData);
+  let data = packResData.slice(20, packResData.length - 20);
 
-  console.log(packResData.slice(0, 40), " THIS IS PACK RES NO SLICED");
-  console.log(packFileContent.slice(0, 40), " THIS IS PACK RES DATA");
+  entries = Buffer.from(packResData.slice(16, 20)).readUInt32BE(0);
 
+  let types = {
+    1: "commit",
+    2: "tree",
+    3: "blob",
+  };
+  let [parsed_bytes, obj] = await read_pack_object(data, 0);
+  console.log("PARSED HOULD EQUAL 143", parsed_bytes);
+  let [par2, obj2] = await read_pack_object(data, 143);
+  let [par3, obj3] = await read_pack_object(data, 143 + 118);
+  let [par4, obj4] = await read_pack_object(data, 143 + 118 + 89 + 2);
+  let [par5, obj5] = await read_pack_object(data, 143 + 118 + 89 + 2 + 26);
+  let res5 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272);
+  let res6 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272 + 199);
+  let res7 = await read_pack_object(
+    data,
+    143 + 118 + 89 + 2 + 26 + 272 + 199 + 52,
+  );
+}
+
+async function read_pack_object(buffer, i) {
+  // Parse the body of object after header
+  // i is the location read in the buffer
+  // parsed_byte is the total bytes read from the object
   const TYPE_CODES = {
     1: "commit",
     2: "tree",
     3: "blob",
-    // Add other types as needed
   };
 
-  let objects = {};
-  let seek = 0;
-  let count = 0;
-  let bshift = 4;
-  entries = entries.readUInt32BE(0);
-  // find entries objects in data
-  while (count != 300) {
-    count++;
-    let header = readObjectHeader(content, seek);
-    console.log(header);
-    seek = header.seek++;
-    if (header.obj_type > 0 && header.obj_type < 5) {
-      decompressBuffer(content.slice(seek))
-        .then((data) => {
-          console.log(
-            "Decompressed data:",
-            data.toString(),
-            "type",
-            header.obj_type,
-          );
-          objects[count] = { type: header.obj_type, data: data.toString() };
+  let [parsed_bytes, type, size] = read_pack_header(buffer, i);
+  console.log(`Parsed ${parsed_bytes} bytes found type ${type} and size ${size}`);
 
-          let decompressLength = 0;
-          while (decompressLength < data.length) {
-            seek++;
-            decompressLength++;
-          }
-        })
-        .catch((err) => {});
-    }
+  i += parsed_bytes;
+  //console.log(`Object starting at ${i} ${buffer[i]}`);
+  if (type < 5) {
+    const [gzip, used] = await decompressFile(buffer.slice(i), size);
+    //console.log(gzip.toString(), `Next parsing location at: ${parsed_bytes}`);
+    console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
+    return [parsed_bytes + used, gzip.toString()];
+  } else if (type == 7) {
+    let ref = buffer.slice(i, i + 20);
+    parsed_bytes += 20;
+    i += 20;
+    const [gzip, used] = await decompressFile(buffer.slice(i));
+    parsed_bytes += used;
   }
 }
 
-function readObjectHeader(content, seek) {
-  let byt = content[seek];
-  let obj_type = (byt & 112) >> 4; // Extracting bits 4-6 for type
-  let obj_size = byt & 0x0f; // Extracting bits 0-3 for initial size
-  seek++;
-  let bshift = 4;
+function read_pack_header(buffer, i) {
+  // Parse pack file header: type + size
 
-  // Read the size continuation bytes
-  while (byt > 128) {
-    byt = content[seek];
-    obj_size |= (byt & 0x7f) << bshift;
-    bshift += 7;
-    seek++;
+  cur = i;
+  type = (buffer[cur] & 112) >> 4;
+  size = buffer[cur] & 15;
+  offset = 4;
+
+  while (buffer[cur] >= 128) {
+    cur++;
+    size += (buffer[cur] & 127) << offset;
+    offset += 7;
   }
-
-  return { obj_type, obj_size, seek };
+  return [cur - i + 1, type, size];
 }
 
-function decompressBuffer(buffer) {
+async function decompressFile(buffer, size) {
+  try {
+    const [decompressedData, used] = await inflateWithLengthLimit(buffer, size);
+    //console.log("Used data length:", used);
+    return [decompressedData, used];
+  } catch (err) {
+    //console.error("Decompression failed:", err.message);
+    throw err;
+  }
+}
+
+function inflateWithLengthLimit(compressedData, maxOutputSize) {
   return new Promise((resolve, reject) => {
-    const zlibStream = zlib.createInflate();
-    let output = Buffer.alloc(0);
+    const inflater = new zlib.Inflate();
+    let decompressedData = Buffer.alloc(0);
+    let parsedBytes = 0;
 
-    zlibStream.on("data", (chunk) => {
-      output = Buffer.concat([output, chunk]);
-      zlibStream.end();
+    inflater.on("data", (chunk) => {
+      decompressedData = Buffer.concat([decompressedData, chunk]);
+      if (decompressedData.length > maxOutputSize) {
+        inflater.emit(
+          "error",
+          new Error("Decompressed data exceeds maximum output size"),
+        );
+      }
     });
 
-    zlibStream.on("end", () => {
-      resolve(output);
+    inflater.on("end", () => {
+      // The total input length minus the remaining buffer length
+      parsedBytes = inflater.bytesRead;
+      resolve([decompressedData, parsedBytes]);
     });
 
-    zlibStream.on("error", (err) => {
+    inflater.on("error", (err) => {
       reject(err);
     });
 
-    // Write the entire buffer to the zlib stream
-    zlibStream.write(buffer);
-    zlibStream.end();
+    inflater.write(compressedData);
+    inflater.end();
   });
 }
-
-function read_record(buffer, offset) {
-  const { type, size, newOffset } = read_record_header(buffer, offset);
-  const decompressedData = read_zlib_stream(buffer, newOffset, size);
-  return { recordType: TYPE_CODES[type], data: decompressedData };
-}
-
-function read_zlib_stream(buffer, offset, size) {
-  // Extract the compressed data
-  const compressedData = buffer.slice(offset, offset + size);
-
-  // Decompress the data
-  const decompressedData = zlib.inflateSync(compressedData);
-
-  return decompressedData;
-}
-
-function readVarIntLE(buffer, offset) {
-  let value = 0;
-  let shift = 0;
-  let byte;
-  let newOffset = offset;
-  do {
-    byte = buffer[newOffset++];
-    value |= (byte & 0x7f) << shift;
-    shift += 7;
-  } while (byte & 0x80);
-  return { value, newOffset };
-}
-
-function read_record_header(buffer, offset) {
-  const { value: byte, newOffset: sizeOffset } = readVarIntLE(buffer, offset);
-  const { value: size, newOffset } = readVarIntLE(buffer, sizeOffset);
-  const type = (byte >> 4) & 0x7;
-  return { type, size, newOffset };
-}
-
-function decodePackFile(data) {
-  console.log(Buffer.from(data));
-  const signatureData = Buffer.from(data.slice(7, 12));
-  console.log(signatureData.toString("utf8"));
-  const version = Buffer.from(data.slice(12, 16));
-  console.log(version.readUInt32BE(0), "THIS IS VERSION");
-  const entries = Buffer.from(data.slice(16, 20));
-  console.log(entries.readUInt32BE(0), "Entries count");
-  const content = Buffer.from(data.slice(20, data.length - 21));
-  const checkSum = data.slice(data.length - 20);
-  console.log(checkSum.toString("hex"), "legnth of hex", checkSum.length);
-  return [entries, content];
-}
-
-function readUInt32BE(buffer, offset) {
-  return buffer.readUInt32BE(offset);
-}
-
-function readUInt8(buffer, offset) {
-  return buffer.readUInt(8);
-}
-
-clone("https://github.com/cnhhoang850/better-nc-quoc-te", "ncqt");
 
 function createGitDirectory(dirName = null) {
   let repoFolder;
