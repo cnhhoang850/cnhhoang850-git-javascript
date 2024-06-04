@@ -27,4 +27,4 @@ function readGitBlob(sha, basePath = "") {
   }
 }
 
-module.exports = readGitBlob(sha);
+module.exports = readGitBlob;
