@@ -6,4 +6,4 @@ function resolveGitObjectPath(hash, basePath = "") {
   return path.join(basePath, ".git", "objects", dirName, fileName);
 }
 
-module.exports = resolveGitObjectPath(hash);
+module.exports = resolveGitObjectPath;
