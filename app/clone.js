@@ -5,78 +5,78 @@ const crypto = require("crypto");
 const https = require("https");
 const axios = require("axios");
 
-clone("https://github.com/cnhhoang850/readify-anything", "ncqt");
+clone("https://github.com/cnhhoang850/readify-anything", "");
 
-async function clone(url, dirName) {
-  //  fs.mkdirSync(path.resolve(dirName));
-  //createGitDirectory(dirName);
+async function git_upload_pack_hash_discovery(url) {
   const git_pack_url = "/info/refs?service=git-upload-pack";
-  const git_pack_post_url = "/git-upload-pack";
-  let packHash = ""; // don't know why i need this yet
+  const response = await axios.get(url + git_pack_url);
+  const data = response.data;
+  let hash = "";
 
-  const packHashRes = await axios.get(url + git_pack_url);
-
-  // get commit saved in server Hash
-  const packHashData = packHashRes.data;
-  const packHashDataArr = packHashData.split("\n");
-  for (let item of packHashDataArr) {
+  for (let line of data.split("\n")) {
     if (
-      (item.includes("refs/heads/master") ||
-        item.includes("refs/heads/main")) &&
-      item.includes("003")
+      (line.includes("refs/heads/master") || line.includes("refs/heads/main")) &&
+      line.includes("003")
     ) {
-      const tupple = item.split(" ");
-      packHash = tupple[0].substring(4); // Use assignment instead of concatenation
-      break; // Exit the loop once the hash is found
+      const tupple = line.split(" ");
+      hash = tupple[0].substring(4);
+      break;
     }
   }
+  return hash;
+}
 
-  // why 00000009done ?
-  const hashToSend = Buffer.from(
-    `0032want ${packHash}\n00000009done\n`,
-    "utf8",
-  );
+async function git_request_pack_file(url, hash) {
+  const git_pack_post_url = "/git-upload-pack";
+  const hashToSend = Buffer.from(`0032want ${hash}\n00000009done\n`, "utf8");
   const headers = {
     "Content-Type": "application/x-git-upload-pack-request",
     "accept-encoding": "gzip,deflate",
   };
-  const packRes = await axios.post(url + git_pack_post_url, hashToSend, {
+
+  const response = await axios.post(url + git_pack_post_url, hashToSend, {
     headers,
     responseType: "arraybuffer", // everything in buffer already
   });
 
+  return response;
+}
+
+async function fetch_git_pack(url) {
+  //  fs.mkdirSync(path.resolve(dirName));
+  //createGitDirectory(dirName);
+  const packHash = await git_upload_pack_hash_discovery(url);
+  const packRes = await git_request_pack_file(url, packHash);
+  // why 00000009done ?
   // problem, not all data sent have the pack files at the same locations
+  return packRes.data;
+}
 
-  const packResData = packRes.data;
+async function parse_git_pack(url) {
   //console.log("THIS IS PACK RES DATA", packResData.toString());
-  let data = packResData.slice(20);
+  const packFile = await fetch_git_pack(url);
+  let packObjects = packFile.slice(20);
+  entries = Buffer.from(packFile.slice(16, 20)).readUInt32BE(0);
 
-  entries = Buffer.from(packResData.slice(16, 20)).readUInt32BE(0);
-  let types = {
-    1: "commit",
-    2: "tree",
-    3: "blob",
-  };
-  //let [parsed_bytes, obj] = await read_pack_object(data, 0);
-  //console.log("PARSED HOULD EQUAL 143", parsed_bytes);
-  //let [par2, obj2] = await read_pack_object(data, 143);
-  //let [par3, obj3] = await read_pack_object(data, 143 + 118);
-  //let [par4, obj4] = await read_pack_object(data, 143 + 118 + 89 + 2);
-  //let [par5, obj5] = await read_pack_object(data, 143 + 118 + 89 + 2 + 26);
-  //let res5 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272);
-  //let res6 = await read_pack_object(data, 143 + 118 + 89 + 2 + 26 + 272 + 199);
   let i = 0;
   let objs = [];
   for (let count = 0; count < entries; count++) {
-    let [byte_read, obj] = await read_pack_object(data, i);
+    let [byte_read, obj] = await read_pack_object(packObjects, i);
     i += byte_read;
     objs.push(obj);
   }
-  console.log(`FOUND ${entries} ENTRIES`);
+  //console.log(`FOUND ${entries} ENTRIES`);
   objs.forEach((e) => console.log(e));
-  console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
-  let checkSum = data.slice(data.length - 20).toString("hex");
-  console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${data.length}`);
+  //console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
+  let checkSum = packObjects.slice(packObjects.length - 20).toString("hex");
+  i += 20; // final checksum length
+  //console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${packObjects.length}`);
+  console.log(objs);
+  return [objs, checkSum];
+}
+
+async function clone(url, directory) {
+  await fetch_git_pack(url);
 }
 
 async function read_pack_object(buffer, i) {
