@@ -13,7 +13,14 @@ function getFormattedUtcOffset() {
   return formattedOffset;
 }
 
-function commitObject(tree_hash, commit_hash, message) {
+function commitObject(
+  tree_hash,
+  commit_hash,
+  message,
+  basePath = "",
+  author = "",
+  committer = "",
+) {
   // Tree objects
   let contents = Buffer.from("tree " + tree_hash + "\n");
 
@@ -32,9 +39,9 @@ function commitObject(tree_hash, commit_hash, message) {
   // Personal info
   contents = Buffer.concat([
     contents,
-    Buffer.from("author " + "author" + "  " + seconds + " " + utcOffset + "\n"),
+    Buffer.from("author " + author + "  " + seconds + " " + utcOffset + "\n"),
     Buffer.from(
-      "committer " + "committer" + " " + seconds + " " + utcOffset + "\n",
+      "committer " + committer + " " + seconds + " " + utcOffset + "\n",
     ),
     Buffer.from("\n"),
     Buffer.from(message + "\n"),
@@ -49,7 +56,7 @@ function commitObject(tree_hash, commit_hash, message) {
   // Calculate commit object sha and write
   let new_object_path = sha1(finalContent);
 
-  let hash = writeGitObject(new_object_path, finalContent);
+  let hash = writeGitObject(new_object_path, finalContent, basePath);
 
   if (hash) {
     process.stdout.write(hash + "\n");

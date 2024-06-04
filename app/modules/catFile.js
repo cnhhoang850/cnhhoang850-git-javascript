@@ -2,9 +2,10 @@ const path = require("path");
 const fs = require("fs");
 const zlib = require("node:zlib");
 
-function readGitBlob(sha) {
+function readGitBlob(sha, basePath = "") {
   // Read git blob based on SHA1 hash
   const blobPath = path.resolve(
+    basePath,
     ".git",
     "objects",
     sha.slice(0, 2),

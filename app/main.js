@@ -1,7 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-const zlib = require("node:zlib");
-const crypto = require("crypto");
 const init = require("./modules/init");
 const clone = require("./modules/clone");
 const checkout = require("./modules/checkout");
@@ -14,13 +10,15 @@ const writeTree = require("./modules/writeTree");
 // Uncomment this block to pass the first stage
 const command = process.argv[2];
 let argvs = process.argv.slice(3);
+const base_path = process.cwd();
 
 switch (command) {
   case "init":
+    let result;
     init();
     break;
+
   case "cat-file":
-    let result;
     switch (argvs.length) {
       case 1:
         result = catFile(argvs[0]);
@@ -30,6 +28,7 @@ switch (command) {
         break;
     }
     break;
+
   case "hash-object":
     switch (argvs.length) {
       case 1:
@@ -40,6 +39,7 @@ switch (command) {
         break;
     }
     break;
+
   case "ls-tree":
     switch (argvs.length) {
       case 1:
@@ -50,12 +50,20 @@ switch (command) {
         break;
     }
     break;
+
   case "write-tree":
     result = writeTree();
     break;
+
   case "commit-tree":
     result = checkout(argvs[0], argvs[2], argvs[4]);
     break;
+
+  case "clone":
+    let cloneDir = path.join(base_path, argvs[1]);
+    result = clone(argvs[0], cloneDir);
+    break;
+
   default:
     throw new Error(`Unknown command ${command}`);
 }

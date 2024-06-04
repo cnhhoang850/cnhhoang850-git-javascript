@@ -1,8 +1,26 @@
 const zlib = require("node:zlib");
 const axios = require("axios");
+const sha1 = require("./utils/sha1");
+const writeBlob = require("./writeBlob");
+
+clone("https://github.com/cnhhoang850/testGitRepo", "test");
 
 async function clone(url, directory) {
+  const gitDir = path.resolve(directory);
   const [objects, checkSum] = await fetch_git_objects(url);
+
+  for (let obj of objects) {
+    // Process by type
+    console.log(obj.content.toString());
+    switch (obj.type) {
+      case "blob":
+        let hash = sha1(obj.content);
+        writeBlob(hash, blob, gitDir);
+        break;
+
+      case "tree":
+    }
+  }
 }
 
 async function git_upload_pack_hash_discovery(url) {
@@ -65,12 +83,12 @@ async function fetch_git_objects(url) {
     objs.push(obj);
   }
   //console.log(`FOUND ${entries} ENTRIES`);
-  objs.forEach((e) => console.log(e));
+  //objs.forEach((e) => console.log(e));
   //console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
   let checkSum = packObjects.slice(packObjects.length - 20).toString("hex");
   i += 20; // final checksum length
   //console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${packObjects.length}`);
-  console.log(objs);
+  //console.log(objs);
   return [objs, checkSum];
 }
 
@@ -95,7 +113,7 @@ async function read_pack_object(buffer, i) {
     //console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
     return [
       parsed_bytes + used,
-      { obj: gzip.toString(), type: TYPE_CODES[type] },
+      { content: gzip.toString(), type: TYPE_CODES[type] },
     ];
   } else if (type == 7) {
     // if delta refs then there will be a 20 bytes hash at the start
@@ -105,7 +123,7 @@ async function read_pack_object(buffer, i) {
     let [gzip, used] = await decompressFile(buffer.slice(i), size);
     return [
       parsed_bytes + used,
-      { obj: gzip.toString(), type: type, ref: ref.toString("hex") },
+      { content: gzip.toString(), type: type, ref: ref.toString("hex") },
     ];
   }
 }

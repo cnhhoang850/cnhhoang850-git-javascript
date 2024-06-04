@@ -3,9 +3,9 @@ const path = require("path");
 const writeBlob = require("./writeBlob");
 const writeGitObject = require("./utils/writeGitObject");
 
-function writeTree() {
+function writeTree(basePath = "") {
   // Read all files and dir in git dir
-  const gitDirectory = process.cwd();
+  const gitDirectory = path.resolve(process.cwd(), basePath);
   const filesAndDirs = fs
     .readdirSync(gitDirectory)
     .filter((f) => f !== ".git" && f !== "main.js");
@@ -24,7 +24,7 @@ function writeTree() {
       entries.push({
         mode: 40000,
         name: file,
-        hash: writeTree(path.join(root, file)),
+        hash: writeTree(path.joins(gitDirectory, fullPath)),
       });
     }
   }
@@ -46,7 +46,7 @@ function writeTree() {
 
   // Create content hash
   const treeHash = sha1(treeContents);
-  writeGitObject(treeHash, treeContents);
+  writeGitObject(treeHash, treeContents, basePath);
 
   if (treeHash) {
     process.stdout.write(treeHash + "\n");

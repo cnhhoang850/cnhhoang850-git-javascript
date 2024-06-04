@@ -3,15 +3,12 @@ const path = require("path");
 const sha1 = require("./utils/sha1");
 const writeGitObject = require("./utils/writeGitObject");
 
-function hashBlob(write, fileName) {
+function hashBlob(write, fileName, basePath = "") {
   // Read file
-  const filePath = path.resolve(fileName);
+  const filePath = path.resolve(basePath, fileName);
 
   // Write git blob
-  let data = fs
-    .readFileSync(filePath)
-    .toString()
-    .replace(/(\r\n|\n|\r)/gm, "");
+  let data = fs.readFileSync(filePath).toString();
 
   // Add header
   data = `blob ${data.length}\0` + data;
@@ -20,7 +17,7 @@ function hashBlob(write, fileName) {
   // Write to directory
   let hash;
   if (write) {
-    hash = writeGitObject(writeFilePath, data);
+    hash = writeGitObject(writeFilePath, data, basePath);
   }
 
   // Log and return hash
