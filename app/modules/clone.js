@@ -1,26 +1,19 @@
 const zlib = require("node:zlib");
 const axios = require("axios");
 const sha1 = require("./utils/sha1");
+const path = require("path");
 const writeBlob = require("./writeBlob");
+const parseTree = require("./parseGitTree");
 
 clone("https://github.com/cnhhoang850/testGitRepo", "test");
 
 async function clone(url, directory) {
   const gitDir = path.resolve(directory);
   const [objects, checkSum] = await fetch_git_objects(url);
-
-  for (let obj of objects) {
-    // Process by type
-    console.log(obj.content.toString());
-    switch (obj.type) {
-      case "blob":
-        let hash = sha1(obj.content);
-        writeBlob(hash, blob, gitDir);
-        break;
-
-      case "tree":
-    }
-  }
+  let trees = objects.filter((e) => e.type == "tree");
+  let blobs = objects.filter((e) => e.type == "blob");
+  let commits = objects.filter((e) => e.type == "commit");
+  console.log(objects);
 }
 
 async function git_upload_pack_hash_discovery(url) {
@@ -87,7 +80,7 @@ async function fetch_git_objects(url) {
   //console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
   let checkSum = packObjects.slice(packObjects.length - 20).toString("hex");
   i += 20; // final checksum length
-  //console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${packObjects.length}`);
+  console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${packObjects.length}`);
   //console.log(objs);
   return [objs, checkSum];
 }
@@ -109,7 +102,7 @@ async function read_pack_object(buffer, i) {
   //console.log(`Object starting at ${i} ${buffer[i]}`);
   if (type < 7 && type != 5) {
     const [gzip, used] = await decompressFile(buffer.slice(i), size);
-    //console.log(gzip.toString(), `Next parsing location at: ${parsed_bytes}`);
+    //console.log(gzip.toString("utf-8"), gzip.length);
     //console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
     return [
       parsed_bytes + used,
@@ -157,7 +150,7 @@ async function decompressFile(buffer, size) {
 
 function inflateWithLengthLimit(compressedData, maxOutputSize) {
   return new Promise((resolve, reject) => {
-    const inflater = new zlib.Inflate();
+    const inflater = new zlib.createInflate();
     let decompressedData = Buffer.alloc(0);
     let parsedBytes = 0;
 
