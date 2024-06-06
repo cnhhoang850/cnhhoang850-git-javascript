@@ -8,10 +8,9 @@ function parseTreeObject(decompressedData) {
 
   while (i < decompressedData.length) {
     // Parse mode
-    let spaceIndex = decompressedData.indexOf(" ");
+    let spaceIndex = decompressedData.indexOf(" ", i);
     let mode = decompressedData.slice(i, spaceIndex).toString("utf8");
     i = spaceIndex + 1;
-    console.log(mode);
 
     // Parse filename
     let nullIndex = decompressedData.indexOf("\0", i);

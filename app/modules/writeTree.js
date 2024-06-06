@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const writeBlob = require("./writeBlob");
-const writeGitObject = require("./utils/writeGitObject");
+const { writeGitObject, createTreeContent } = require("./utils");
 
 function writeTree(basePath = "") {
   // Read all files and dir in git dir
@@ -30,22 +30,7 @@ function writeTree(basePath = "") {
   }
 
   // Write content into byte buffer to preserve string structure in byte
-  const contents = entries.reduce((acc, { mode, name, hash }) => {
-    return Buffer.concat([
-      acc,
-      Buffer.from(`${mode} ${name}\0`), // Header always separated with data by \0
-      Buffer.from(hash, "hex"),
-    ]);
-  }, Buffer.alloc(0));
-
-  // Attach header
-  const treeContents = Buffer.concat([
-    Buffer.from(`tree ${contents.length}\x00`),
-    contents,
-  ]);
-
-  // Create content hash
-  const treeHash = sha1(treeContents);
+  const { treeHash, treeContents } = createTreeContent(entries);
   writeGitObject(treeHash, treeContents, basePath);
 
   if (treeHash) {

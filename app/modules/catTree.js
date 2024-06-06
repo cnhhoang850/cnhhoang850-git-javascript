@@ -1,9 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const zlib = require("node:zlib");
-const resolveGitObjectPath = require("./utils/resolveGitObjectPath");
+const { resolveGitObjectPath } = require("./utils");
 
-function readTree(hash) {
+function readTree(hash, basePath = "") {
   // Resolve dirname
   const objectPath = resolveGitObjectPath(hash);
 
@@ -24,6 +24,7 @@ function readTree(hash) {
 
   const entries = [];
 
+  // Error
   while (dataStr.length > 0) {
     // Format: mode, filename, hash
     // Extract mode

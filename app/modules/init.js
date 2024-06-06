@@ -17,4 +17,4 @@ function createGitDirectory(basePath = "") {
   console.log("Initialized git directory");
 }
 
-module.exports = createGitDirectory();
+module.exports = createGitDirectory;

@@ -1,5 +1,4 @@
-const sha1 = require("./utils/sha1");
-const writeGitObject = require("./utils/writeGitObject");
+const { writeGitObject, sha1 } = require("./utils");
 
 function getFormattedUtcOffset() {
   const date = new Date();

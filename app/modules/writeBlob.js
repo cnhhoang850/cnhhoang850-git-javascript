@@ -1,7 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const sha1 = require("./utils/sha1");
-const writeGitObject = require("./utils/writeGitObject");
+const { sha1, writeGitObject } = require("./utils");
 
 function hashBlob(write, fileName, basePath = "") {
   // Read file
