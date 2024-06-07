@@ -5,87 +5,105 @@ const fs = require("fs");
 const writeBlob = require("./writeBlob");
 const parseTree = require("./parseGitTree");
 const init = require("./init");
+
+process.removeAllListeners("warning"); // remove deprecation warnings
+
 const {
   sha1,
   writeGitObject,
+  readGitObject,
   createTreeContent,
   parseTreeEntries,
   createBlobContent,
   createCommitContent,
 } = require("./utils");
 
+function resolveDeltaObject(hash, instructions, dir) {
+  // Read the target object
+  const { type, length, content } = readGitObject(hash, dir);
+
+  const contentToWrite = decode_delta(instructions, content);
+}
+
 clone("https://github.com/cnhhoang850/testGitRepo", "test");
 
 async function clone(url, directory) {
   const gitDir = path.resolve(directory);
-  //fs.mkdirSync(gitDir);
-  //init(gitDir);
+  // fs.mkdirSync(gitDir);
+  // init(gitDir);
 
-  const [objects, checkSum, head] = await fetch_git_objects(url);
-  let treeObjects = objects.filter((e) => e.type == "tree");
-  let blobObjects = objects.filter((e) => e.type == "blob");
-  let commitObjects = objects.filter((e) => e.type == "commit");
+  const [objects, checkSum, head] = await fetchGitObjects(url);
+  const treeObjects = objects.filter((e) => e.type === "tree");
+  const blobObjects = objects.filter((e) => e.type === "blob");
+  const commitObjects = objects.filter((e) => e.type === "commit");
 
   // Format pack content into git objects
-  let treeContents = treeObjects.map((tree) =>
+  const treeContents = treeObjects.map((tree) =>
     createTreeContent(parseTreeEntries(tree.content)),
   );
-  let blobContents = blobObjects.map((blob) => createBlobContent(blob.content));
-  let commitContents = commitObjects.map((commit) =>
+  const blobContents = blobObjects.map((blob) =>
+    createBlobContent(blob.content),
+  );
+  const commitContents = commitObjects.map((commit) =>
     createCommitContent(commit.content),
   );
 
-  console.log(objects);
+  for (const obj of objects) {
+    if (obj.type === 7) {
+      console.log(obj);
+      console.log(treeContents);
+    }
+  }
 
-  //// Write to git object
-  //for (let i of [treeContents, blobContents, commitContents]) {
+  /// / Write to git object
+  // for (let i of [treeContents, blobContents, commitContents]) {
   //  for (let { hash, content } of i) {
   //    console.log("Item: ", i, "with hash: ", hash);
   //    let res = writeGitObject(hash, content, gitDir);
   //  }
-  //}
+  // }
 
   // Write HEAD
-  //fs.writeFileSync(
+  // fs.writeFileSync(
   //  path.join(gitDir, ".git", "HEAD"),
   //  `ref: ${head.ref}`,
-  //)
+  // )
 
   // Write refs
-  //fs.mkdirSync(path.join(gitDir, ".git", "refs", "heads"), { recursive: true });
-  //fs.writeFileSync(
+  // fs.mkdirSync(path.join(gitDir, ".git", "refs", "heads"), { recursive: true });
+  // fs.writeFileSync(
   //  path.join(gitDir, ".git", "refs", "heads", ref.split("/")[2]),
   //  head.hash,
-  //)
+  // )
 
-  //// Find most recent commit
-  let currentCommit = commitContents.filter((c) => c.hash == head.hash)[0];
+  /// / Find most recent commit
+  let currentCommit = commitContents.filter((c) => c.hash === head.hash)[0];
   currentCommit = currentCommit.content.toString().split("\n");
-  //console.log(currentCommit);
+  // console.log(currentCommit);
 
-  //// Find the tree of the most recent commit
-  let currentTree = currentCommit[0].split(" ")[2]; // due to head
-  //currentTree = treeContents.filter((t) => t.hash == currentTree)[0];
-  console.log(currentTree, currentCommit);
-  for (let tree of treeObjects) {
-    console.log(tree.content.toString());
+  /// / Find the tree of the most recent commit
+  const currentTree = currentCommit[0].split(" ")[2]; // due to head
+  // currentTree = treeContents.filter((t) => t.hash == currentTree)[0];
+  // console.log(currentTree, currentCommit);
+  for (const tree of treeObjects) {
+    // console.log(tree.content.toString());
   }
 
-  //// Parse entries
-  //let nullIndex = currentTree.content.indexOf("\0");
-  //currentTree = currentTree.content.slice(nullIndex + 1);
-  //let currentEntries = parseTreeEntries(currentTree);
+  /// / Parse entries
+  // let nullIndex = currentTree.content.indexOf("\0");
+  // currentTree = currentTree.content.slice(nullIndex + 1);
+  // let currentEntries = parseTreeEntries(currentTree);
   // TODO: Solve delta 7 dif to build the main tree
 }
 
-async function git_upload_pack_hash_discovery(url) {
-  const git_pack_url = "/info/refs?service=git-upload-pack";
-  const response = await axios.get(url + git_pack_url);
+async function gitUploadPackHashDiscovery(url) {
+  const gitPackUrl = "/info/refs?service=git-upload-pack";
+  const response = await axios.get(url + gitPackUrl);
   const data = response.data;
   let hash = "";
   let ref = "";
 
-  for (let line of data.split("\n")) {
+  for (const line of data.split("\n")) {
     if (
       (line.includes("refs/heads/master") ||
         line.includes("refs/heads/main")) &&
@@ -100,15 +118,15 @@ async function git_upload_pack_hash_discovery(url) {
   return { packHash: hash, ref };
 }
 
-async function git_request_pack_file(url, hash) {
-  const git_pack_post_url = "/git-upload-pack";
+async function gitRequestPackFile(url, hash) {
+  const gitPackPostUrl = "/git-upload-pack";
   const hashToSend = Buffer.from(`0032want ${hash}\n00000009done\n`, "utf8");
   const headers = {
     "Content-Type": "application/x-git-upload-pack-request",
     "accept-encoding": "gzip,deflate",
   };
 
-  const response = await axios.post(url + git_pack_post_url, hashToSend, {
+  const response = await axios.post(url + gitPackPostUrl, hashToSend, {
     headers,
     responseType: "arraybuffer", // everything in buffer already
   });
@@ -116,41 +134,41 @@ async function git_request_pack_file(url, hash) {
   return response;
 }
 
-async function fetch_git_pack(url) {
+async function fetchGitPack(url) {
   //  fs.mkdirSync(path.resolve(dirName));
-  //createGitDirectory(dirName);
-  let { packHash, ref } = await git_upload_pack_hash_discovery(url);
-  const packRes = await git_request_pack_file(url, packHash);
+  // createGitDirectory(dirName);
+  const { packHash, ref } = await gitUploadPackHashDiscovery(url);
+  const packRes = await gitRequestPackFile(url, packHash);
   // why 00000009done ?
   // problem, not all data sent have the pack files at the same locations
   return { data: packRes.data, head: { ref, hash: packHash } };
 }
 
-async function fetch_git_objects(url) {
-  //console.log("THIS IS PACK RES DATA", packResData.toString());
-  let { data, head } = await fetch_git_pack(url);
+async function fetchGitObjects(url) {
+  // console.log("THIS IS PACK RES DATA", packResData.toString());
+  const { data, head } = await fetchGitPack(url);
   const packFile = data;
-  let packObjects = packFile.slice(20);
-  let entries = Buffer.from(packFile.slice(16, 20)).readUInt32BE(0);
+  const packObjects = packFile.slice(20);
+  const entries = Buffer.from(packFile.slice(16, 20)).readUInt32BE(0);
 
   let i = 0;
-  let objs = [];
+  const objs = [];
   for (let count = 0; count < entries; count++) {
-    let [byte_read, obj] = await read_pack_object(packObjects, i);
-    i += byte_read;
+    const [byteRead, obj] = await readPackObject(packObjects, i);
+    i += byteRead;
     objs.push(obj);
   }
-  //console.log(`FOUND ${entries} ENTRIES`);
-  //objs.forEach((e) => console.log(e));
-  //console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
-  let checkSum = packObjects.slice(packObjects.length - 20).toString("hex");
+  // console.log(`FOUND ${entries} ENTRIES`);
+  // objs.forEach((e) => console.log(e));
+  // console.log(`THERE ARE ${objs.length} OBJECTS DECODED`);
+  const checkSum = packObjects.slice(packObjects.length - 20).toString("hex");
   i += 20; // final checksum length
   console.log(`BYTES READ: ${i}, BYTES RECEIVED: ${packObjects.length}`);
-  //console.log(objs);
+  // console.log(objs);
   return [objs, checkSum, head];
 }
 
-async function read_pack_object(buffer, i) {
+async function readPackObject(buffer, i) {
   // Parse the body of object after header
   // i is the location read in the buffer
   // parsed_byte is the total bytes read from the object
@@ -160,36 +178,33 @@ async function read_pack_object(buffer, i) {
     3: "blob",
   };
 
-  let [parsed_bytes, type, size] = read_pack_header(buffer, i);
-  //console.log(`Parsed ${parsed_bytes} bytes found type ${type} and size ${size}`,);
+  let [parsedBytes, type, size] = readPackHeader(buffer, i);
+  // console.log(`Parsed ${parsed_bytes} bytes found type ${type} and size ${size}`,);
 
-  i += parsed_bytes;
-  //console.log(`Object starting at ${i} ${buffer[i]}`);
+  i += parsedBytes;
+  // console.log(`Object starting at ${i} ${buffer[i]}`);
   if (type < 7 && type != 5) {
     const [gzip, used] = await decompressFile(buffer.slice(i), size);
-    //console.log(gzip.toString("utf-8"), gzip.length);
-    //console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
-    return [parsed_bytes + used, { content: gzip, type: TYPE_CODES[type] }];
+    // console.log(gzip.toString("utf-8"), gzip.length);
+    // console.log("THIS IS PARSED", parsed_bytes, gzip.toString());
+    return [parsedBytes + used, { content: gzip, type: TYPE_CODES[type] }];
   } else if (type == 7) {
     // if delta refs then there will be a 20 bytes hash at the start
-    let ref = buffer.slice(i, i + 20);
-    parsed_bytes += 20;
+    const ref = buffer.slice(i, i + 20);
+    parsedBytes += 20;
     i += 20;
-    let [gzip, used] = await decompressFile(buffer.slice(i), size);
-    return [
-      parsed_bytes + used,
-      { content: gzip, type: type, ref: ref.toString("hex") },
-    ];
+    const [gzip, used] = await decompressFile(buffer.slice(i), size);
+    return [parsedBytes + used, { content: gzip, type, ref }];
   }
 }
 
-function read_pack_header(buffer, i) {
+function readPackHeader(buffer, i) {
   // Parse pack file header: type + size
 
-  cur = i;
-  type = (buffer[cur] & 112) >> 4;
-  size = buffer[cur] & 15;
-  offset = 4;
+  let cur = i;
+  const type = (buffer[cur] & 112) >> 4;
+  let size = buffer[cur] & 15;
+  let offset = 4;
 
   while (buffer[cur] >= 128) {
     cur++;
@@ -202,10 +217,10 @@ function read_pack_header(buffer, i) {
 async function decompressFile(buffer, size) {
   try {
     const [decompressedData, used] = await inflateWithLengthLimit(buffer, size);
-    //console.log("Used data length:", used);
+    // console.log("Used data length:", used);
     return [decompressedData, used];
   } catch (err) {
-    //console.error("Decompression failed:", err.message);
+    // console.error("Decompression failed:", err.message);
     throw err;
   }
 }

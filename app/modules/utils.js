@@ -6,8 +6,8 @@ const crypto = require("crypto");
 function writeGitObject(hash, content, basePath = "") {
   // Receive a SHA1 hash and file content and write a new git object
 
-  let objectFolder = hash.slice(0, 2);
-  let objectName = hash.slice(2);
+  const objectFolder = hash.slice(0, 2);
+  const objectName = hash.slice(2);
 
   if (fs.existsSync(path.join(basePath, ".git", "objects", objectFolder))) {
     throw new Error("Folder already exist");
@@ -43,7 +43,7 @@ function resolveGitObjectPath(hash, basePath = "") {
 
 function formatBlob(content) {
   content = content.toString();
-  let data = `blob ${content.length}\0` + content;
+  const data = `blob ${content.length}\0` + content;
   return data;
 }
 
@@ -127,6 +127,33 @@ function createCommitContent(commit) {
   return { hash, content };
 }
 
+function readGitObject(sha, basePath = "") {
+  // Read git blob based on SHA1 hash
+  const blobPath = path.resolve(
+    basePath,
+    ".git",
+    "objects",
+    sha.slice(0, 2),
+    sha.slice(2),
+  );
+
+  const data = fs.readFileSync(blobPath);
+  const dataUncompressed = zlib.unzipSync(data);
+
+  // Find index header ends
+  const nullByteIndex = dataUncompressed.indexOf("\0");
+  const header = dataUncompressed.toString().slice(0, nullByteIndex).split(" ");
+  const type = header[0];
+  const length = header[1];
+  const content = dataUncompressed.toString().slice(nullByteIndex + 1);
+
+  if (dataUncompressed) {
+    return { type, length, content };
+  } else {
+    throw new Error("Can't read git blob");
+  }
+}
+
 module.exports = {
   resolveGitObjectPath,
   createCommitContent,
@@ -134,6 +161,7 @@ module.exports = {
   createTreeContent,
   parseTreeEntries,
   writeGitObject,
+  readGitObject,
   formatBlob,
   sha1,
 };
