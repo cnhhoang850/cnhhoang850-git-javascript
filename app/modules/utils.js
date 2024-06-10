@@ -60,6 +60,7 @@ function createBlobContent(data) {
   return { hash, content };
 }
 
+// Fix parse tree entries
 function parseTreeEntries(data) {
   const result = [];
   let startIndex = 0;
