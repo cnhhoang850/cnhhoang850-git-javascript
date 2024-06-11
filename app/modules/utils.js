@@ -87,10 +87,11 @@ function parseTreeEntries(data) {
   return result;
 }
 
-// Take array of entries (tree pack obj) and return git tree object content and hash
-function createTreeContent(entries) {
+function createTreeContent(tree, entries = false) {
   if (!entries) {
-    throw new Error("No entries to be found");
+    entries = parseTreeEntries(tree);
+  } else if (entries) {
+    entries = tree;
   }
 
   const content = entries.reduce((acc, { mode, fileName, hash }) => {
@@ -146,7 +147,7 @@ function readGitObject(sha, basePath = "") {
   const header = dataUncompressed.toString().slice(0, nullByteIndex).split(" ");
   const type = header[0];
   const length = header[1];
-  const content = dataUncompressed.toString().slice(nullByteIndex + 1);
+  const content = dataUncompressed.slice(nullByteIndex + 1);
 
   if (dataUncompressed) {
     return { type, length, content };
@@ -155,12 +156,20 @@ function readGitObject(sha, basePath = "") {
   }
 }
 
+function logObjectHashes(title, objects, get = (obj) => obj.parsed.hash) {
+  console.log(`${title} RETRIEVED`);
+  console.log("-----------------------------------");
+  objects.forEach((obj) => console.log(getParsedHash(obj)));
+  console.log("\n");
+}
+
 module.exports = {
   resolveGitObjectPath,
   createCommitContent,
   createBlobContent,
   createTreeContent,
   parseTreeEntries,
+  logObjectHashes,
   writeGitObject,
   readGitObject,
   formatBlob,
