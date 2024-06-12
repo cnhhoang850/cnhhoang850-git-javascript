@@ -11,6 +11,7 @@ function writeGitObject(hash, content, basePath = "") {
 
   if (fs.existsSync(path.join(basePath, ".git", "objects", objectFolder))) {
     throw new Error("Folder already exist");
+    console.log(hash, content, basePath);
   } else if (
     fs.existsSync(path.join(basePath, ".git", "objects", objectName))
   ) {
