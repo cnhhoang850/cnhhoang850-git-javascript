@@ -5,7 +5,7 @@ const createCommit = require("./modules/createCommit");
 const catFile = require("./modules/catFile");
 const catTree = require("./modules/catTree");
 const writeBlob = require("./modules/writeBlob");
-const writeTree = require("./modules/writeTree");
+const writeTree = require("./modules/writeFolderAsTree");
 
 // You can use print statements as follows for debugging, they'll be visible when running tests.
 // Uncomment this block to pass the first stage
