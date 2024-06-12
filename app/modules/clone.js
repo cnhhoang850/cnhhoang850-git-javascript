@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const writeBlob = require("./writeBlob");
 const parseTree = require("./parseGitTree");
+const checkout = require("./checkout");
 const init = require("./init");
 
 process.removeAllListeners("warning"); // remove deprecation warnings
@@ -19,12 +20,12 @@ const {
   createCommitContent,
 } = require("./utils");
 
-clone("https://github.com/cnhhoang850/testGitRepo", "test");
+//clone("https://github.com/cnhhoang850/testGitRepo", "test");
 
 async function clone(url, directory) {
   const gitDir = path.resolve(directory);
-  //fs.mkdirSync(gitDir);
-  //init(directory);
+  fs.mkdirSync(gitDir);
+  init(directory);
 
   const { gitObjects, deltaObjects, checkSum, head } =
     await getParsedGitObjects(url);
@@ -34,39 +35,39 @@ async function clone(url, directory) {
     `ref: ${head.ref.toString("utf8")}`,
   );
 
-  //fs.mkdirSync(path.join(gitDir, ".git", "refs", "heads"), { recursive: true });
-  //fs.writeFileSync(
-  //  path.join(gitDir, ".git", "refs", "heads", head.ref.split("/")[2]),
-  //  head.hash,
-  //);
+  fs.mkdirSync(path.join(gitDir, ".git", "refs", "heads"), { recursive: true });
+  fs.writeFileSync(
+    path.join(gitDir, ".git", "refs", "heads", head.ref.split("/")[2]),
+    head.hash,
+  );
 
-  //for (let i of gitObjects) {
-  //  writeGitObject(i.parsed.hash, i.parsed.content, gitDir);
-  //  //      console.log("Item: ", i, "with hash: ", hash);
-  //}
-
-  let deltaTrees = [];
-  for (let delta of deltaObjects) {
-    let res = resolveDeltaObject(
-      delta.ref.toString("hex"),
-      delta.content,
-      gitDir,
-    );
-    deltaTrees.push(res);
+  for (let key in gitObjects) {
+    let obj = gitObjects[key];
+    writeGitObject(obj.hash, obj.parsed, gitDir);
   }
 
-  console.log(deltaTrees);
+  let resolvedDeltas = resolveDeltaObjects(deltaObjects, gitDir);
 
-  let currentCommit = gitObjects[head.hash];
-  currentCommit = currentCommit.parsed.toString().split("\n");
-  let currentTree = currentCommit[0].split(" ")[2];
-  currentTree = deltaTrees.filter((t) => t.hash == currentTree)[0];
+  for (let key in resolvedDeltas) {
+    let obj = resolvedDeltas[key];
+    gitObjects[obj.hash] = obj;
+  }
 
-  /// / Parse entries
-  // let nullIndex = currentTree.content.indexOf("\0");
-  // currentTree = currentTree.content.slice(nullIndex + 1);
-  // let currentEntries = parseTreeEntries(currentTree);
-  // TODO: Solve delta 7 dif to build the main tree
+  let hashToCheckout = findTreeToCheckout(head.hash, gitDir);
+  checkout(hashToCheckout, gitDir, gitDir);
+}
+
+function findTreeToCheckout(hash, basePath = "") {
+  const { type, length, content } = readGitObject(hash, basePath);
+
+  if (type !== "commit") {
+    throw new Error("Not a commit");
+  }
+
+  let commit = content.slice(content.indexOf("\0"));
+  commit = content.toString().split("\n");
+  let treeToCheckout = commit[0].split(" ")[1];
+  return treeToCheckout;
 }
 
 async function getParsedGitObjects(url) {
@@ -88,9 +89,9 @@ async function getParsedGitObjects(url) {
       };
     }
   });
-  const deltaObjects = new Set();
+  const deltaObjects = {};
   objects.forEach((obj) => {
-    if (obj.type === "delta") deltaObjects.add(obj);
+    if (obj.type === "delta") deltaObjects[obj.ref.toString("hex")] = obj;
   });
   return { gitObjects, deltaObjects, checkSum, head };
 }
@@ -230,12 +231,23 @@ function inflateWithLengthLimit(compressedData, maxOutputSize) {
   });
 }
 
-function resolveDeltaObject(hash, instructions, dir) {
-  const { type, length, content } = readGitObject(hash, dir);
-  const contentToWrite = decodeDelta(instructions, content);
-  const entries = parseTreeEntries(contentToWrite);
-  const tree = createTreeContent(entries, true);
-  return tree;
+function resolveDeltaObjects(deltas, basePath = "") {
+  let results = {};
+  for (let key in deltas) {
+    let delta = deltas[key];
+    let hash = delta.ref.toString("hex");
+    let instructions = delta.content;
+    const { type, length, content } = readGitObject(hash, basePath);
+    const contentToWrite = decodeDelta(instructions, content);
+    const entries = parseTreeEntries(contentToWrite);
+    const tree = createTreeContent(entries, true);
+    tree.parsed = tree.content;
+    delete tree.content;
+    tree.instructions = instructions;
+    writeGitObject(tree.hash, tree.parsed, basePath);
+    results[tree.hash] = tree;
+  }
+  return results;
 }
 
 function decodeDelta(instructions, refContent) {

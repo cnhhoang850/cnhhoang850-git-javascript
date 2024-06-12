@@ -73,13 +73,13 @@ function parseTreeEntries(data) {
     const fileNameStartIndex = modeEndIndex + 1;
     const nullByteIndex = data.indexOf("\0", fileNameStartIndex);
     if (nullByteIndex === -1) break; // Exit loop if delimiter not found
-    const fileName = data.slice(fileNameStartIndex, nullByteIndex).toString();
+    const name = data.slice(fileNameStartIndex, nullByteIndex).toString();
 
     const hashStartIndex = nullByteIndex + 1;
     const hashEndIndex = hashStartIndex + 20;
     const hash = data.slice(hashStartIndex, hashEndIndex).toString("hex");
 
-    result.push({ mode, fileName, hash });
+    result.push({ mode, name, hash });
 
     startIndex = hashEndIndex;
   }
@@ -94,10 +94,10 @@ function createTreeContent(tree, entries = false) {
     entries = tree;
   }
 
-  const content = entries.reduce((acc, { mode, fileName, hash }) => {
+  const content = entries.reduce((acc, { mode, name, hash }) => {
     return Buffer.concat([
       acc,
-      Buffer.from(`${mode} ${fileName}\0`),
+      Buffer.from(`${mode} ${name}\0`),
       Buffer.from(hash, "hex"),
     ]);
   }, Buffer.alloc(0));
@@ -110,7 +110,7 @@ function createTreeContent(tree, entries = false) {
 
   // Create content hash
   const treeHash = sha1(treeContents);
-  return { hash: treeHash, content: treeContents };
+  return { hash: treeHash, type: "tree", content: treeContents };
 }
 
 // Parse pack commit object
