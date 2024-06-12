@@ -15,17 +15,16 @@ const base_path = process.cwd();
 
 switch (command) {
   case "init":
-    let result;
     init();
     break;
 
   case "cat-file":
     switch (argvs.length) {
       case 1:
-        result = catFile(argvs[0]);
+        catFile(argvs[0]);
         break;
       case 2:
-        result = catFile(argvs[1]);
+        catFile(argvs[1]);
         break;
     }
     break;
@@ -33,10 +32,10 @@ switch (command) {
   case "hash-object":
     switch (argvs.length) {
       case 1:
-        result = writeBlob(true, argvs[0]);
+        writeBlob(true, argvs[0]);
         break;
       case 2:
-        result = writeBlob(true, argvs[0]);
+        writeBlob(true, argvs[0]);
         break;
     }
     break;
@@ -44,24 +43,24 @@ switch (command) {
   case "ls-tree":
     switch (argvs.length) {
       case 1:
-        result = catTree(argvs[0]);
+        catTree(argvs[0]);
         break;
       case 2:
-        result = catTree(argvs[1]);
+        catTree(argvs[1]);
         break;
     }
     break;
 
   case "write-tree":
-    result = writeTree();
+    writeTree();
     break;
 
   case "commit-tree":
-    result = createCommit(argvs[0], argvs[2], argvs[4]);
+    createCommit(argvs[0], argvs[2], argvs[4]);
     break;
 
   case "clone":
-    result = clone(argvs[0], argvs[1]);
+    clone(argvs[0], argvs[1]);
     break;
 
   default:
