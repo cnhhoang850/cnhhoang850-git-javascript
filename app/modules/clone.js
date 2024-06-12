@@ -81,9 +81,10 @@ async function clone(url, directory) {
   }
 
   let hashToCheckout = findTreeToCheckout(head.hash, gitDir);
-  console.log(hashToCheckout, gitObjects[hashToCheckout]);
+  //console.log(hashToCheckout, gitObjects[hashToCheckout]);
   checkout(hashToCheckout, gitDir, gitDir);
-  //fs.rmSync(gitDir, { recursive: true });
+  process.stdout.write(hashToCheckout);
+  fs.rmSync(gitDir, { recursive: true });
 }
 
 function findTreeToCheckout(hash, basePath = "") {
@@ -246,7 +247,7 @@ function inflateWithLengthLimit(compressedData, maxOutputSize) {
 
 function resolveDeltaObjects(deltas, basePath = "") {
   let results = {};
-  let pending = [];
+  let pending = {};
   for (let key in deltas) {
     try {
       let delta = deltas[key];
@@ -256,12 +257,16 @@ function resolveDeltaObjects(deltas, basePath = "") {
       let decoded = { type: type, content: decodeDelta(instructions, content) };
       decoded = parseGitObject(decoded);
       writeGitObject(decoded.hash, decoded.parsed, basePath);
-      console.log(decoded, "THIS IS CONTENT");
+      //console.log(decoded, "THIS IS CONTENT");
     } catch (err) {
-      pending.push(deltas[key]);
-      console.log("ERRRRRRRRRR");
+      pending[deltas[key].hash] = deltas[key];
     }
   }
+
+  if (pending.length > 0) {
+    resolveDeltaObjects(pending, basePath);
+  }
+
   return results;
 }
 
