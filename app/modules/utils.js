@@ -3,6 +3,12 @@ const path = require("path");
 const zlib = require("node:zlib");
 const crypto = require("crypto");
 
+const PARSE_FUNCTIONS = {
+  tree: createTreeContent,
+  blob: createBlobContent,
+  commit: createCommitContent,
+};
+
 function writeGitObject(hash, content, basePath = "") {
   // Receive a SHA1 hash and file content and write a new git object
 
@@ -10,8 +16,12 @@ function writeGitObject(hash, content, basePath = "") {
   const objectName = hash.slice(2);
 
   if (fs.existsSync(path.join(basePath, ".git", "objects", objectFolder))) {
-    throw new Error("Folder already exist");
-    console.log(hash, content, basePath);
+    fs.writeFileSync(
+      path.join(basePath, ".git", "objects", objectFolder, objectName),
+      zlib.deflateSync(content),
+    );
+
+    return objectName;
   } else if (
     fs.existsSync(path.join(basePath, ".git", "objects", objectName))
   ) {
@@ -164,6 +174,36 @@ function logObjectHashes(title, objects, get = (obj) => obj.parsed.hash) {
   console.log("\n");
 }
 
+function parseGitObject(object) {
+  if (object.type != "delta") {
+    let parsed = PARSE_FUNCTIONS[object.type](object.content);
+    return {
+      hash: parsed.hash,
+      type: object.type,
+      parsed: parsed.content,
+      raw: object.content,
+    };
+  } else {
+    throw new Error("Refer to resovle delta function");
+  }
+}
+
+function parseGitObjects(objects) {
+  let gitObjects = {};
+  objects.forEach((obj) => {
+    if (obj.type != "delta") {
+      let parsed = PARSE_FUNCTIONS[obj.type](obj.content);
+      gitObjects[parsed.hash] = {
+        hash: parsed.hash,
+        type: obj.type,
+        parsed: parsed.content,
+        raw: obj.content,
+      };
+    }
+  });
+  return gitObjects;
+}
+
 module.exports = {
   resolveGitObjectPath,
   createCommitContent,
@@ -171,6 +211,8 @@ module.exports = {
   createTreeContent,
   parseTreeEntries,
   logObjectHashes,
+  parseGitObjects,
+  parseGitObject,
   writeGitObject,
   readGitObject,
   formatBlob,

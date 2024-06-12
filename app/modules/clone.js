@@ -13,6 +13,8 @@ const {
   sha1,
   writeGitObject,
   readGitObject,
+  parseGitObject,
+  parseGitObjects,
   logObjectHashes,
   createTreeContent,
   parseTreeEntries,
@@ -20,7 +22,7 @@ const {
   createCommitContent,
 } = require("./utils");
 
-//clone("https://github.com/cnhhoang850/testGitRepo", "test");
+clone("https://github.com/codecrafters-io/git-sample-2", "test");
 
 async function clone(url, directory) {
   const gitDir = path.resolve(directory);
@@ -29,6 +31,31 @@ async function clone(url, directory) {
 
   const { gitObjects, deltaObjects, checkSum, head } =
     await getParsedGitObjects(url);
+
+  //console.log(`THIS IS HEAD ${head.hash.toString("hex")}`);
+  //if (gitObjects[head.hash.toString("hex")]) {
+  //  console.log(
+  //    "FOUND HEAD ",
+  //    gitObjects[head.hash.toString("hex")].parsed.toString(),
+  //  );
+  //} else {
+  //  console.log("HEAD NOT PRESNT");
+  //}
+
+  //for (let key in deltaObjects) {
+  //  if (gitObjects[key]) {
+  //    console.log(
+  //      "FOUND REF OF DELTA ",
+  //      deltaObjects[key].ref.toString("hex"),
+  //      gitObjects[key],
+  //    );
+  //  } else {
+  //    console.log(
+  //      "DID NOT FIND REF OF DELTA ",
+  //      deltaObjects[key].ref.toString("hex"),
+  //    );
+  //  }
+  //}
 
   fs.writeFileSync(
     path.join(gitDir, ".git", "HEAD"),
@@ -54,7 +81,9 @@ async function clone(url, directory) {
   }
 
   let hashToCheckout = findTreeToCheckout(head.hash, gitDir);
+  console.log(hashToCheckout, gitObjects[hashToCheckout]);
   checkout(hashToCheckout, gitDir, gitDir);
+  //fs.rmSync(gitDir, { recursive: true });
 }
 
 function findTreeToCheckout(hash, basePath = "") {
@@ -71,24 +100,8 @@ function findTreeToCheckout(hash, basePath = "") {
 }
 
 async function getParsedGitObjects(url) {
-  const PARSE_FUNCTIONS = {
-    tree: createTreeContent,
-    blob: createBlobContent,
-    commit: createCommitContent,
-  };
   const { objects, checkSum, head } = await getRawGitObjects(url);
-  const gitObjects = {};
-  objects.forEach((obj) => {
-    if (obj.type != "delta") {
-      let parsed = PARSE_FUNCTIONS[obj.type](obj.content);
-      gitObjects[parsed.hash] = {
-        hash: parsed.hash,
-        type: obj.type,
-        parsed: parsed.content,
-        raw: obj.content,
-      };
-    }
-  });
+  const gitObjects = parseGitObjects(objects);
   const deltaObjects = {};
   objects.forEach((obj) => {
     if (obj.type === "delta") deltaObjects[obj.ref.toString("hex")] = obj;
@@ -233,19 +246,21 @@ function inflateWithLengthLimit(compressedData, maxOutputSize) {
 
 function resolveDeltaObjects(deltas, basePath = "") {
   let results = {};
+  let pending = [];
   for (let key in deltas) {
-    let delta = deltas[key];
-    let hash = delta.ref.toString("hex");
-    let instructions = delta.content;
-    const { type, length, content } = readGitObject(hash, basePath);
-    const contentToWrite = decodeDelta(instructions, content);
-    const entries = parseTreeEntries(contentToWrite);
-    const tree = createTreeContent(entries, true);
-    tree.parsed = tree.content;
-    delete tree.content;
-    tree.instructions = instructions;
-    writeGitObject(tree.hash, tree.parsed, basePath);
-    results[tree.hash] = tree;
+    try {
+      let delta = deltas[key];
+      let hash = delta.ref.toString("hex");
+      let instructions = delta.content;
+      const { type, length, content } = readGitObject(hash, basePath);
+      let decoded = { type: type, content: decodeDelta(instructions, content) };
+      decoded = parseGitObject(decoded);
+      writeGitObject(decoded.hash, decoded.parsed, basePath);
+      console.log(decoded, "THIS IS CONTENT");
+    } catch (err) {
+      pending.push(deltas[key]);
+      console.log("ERRRRRRRRRR");
+    }
   }
   return results;
 }
