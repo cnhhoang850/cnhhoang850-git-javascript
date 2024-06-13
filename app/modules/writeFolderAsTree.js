@@ -24,7 +24,7 @@ function writeFolderAsTree(basePath = "") {
       entries.push({
         mode: 40000,
         name: file,
-        hash: writeTree(path.joins(gitDirectory, fullPath)),
+        hash: writeTree(path.join(gitDirectory, fullPath)),
       });
     }
   }
