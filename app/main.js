@@ -52,7 +52,7 @@ switch (command) {
     break;
 
   case "write-tree":
-    writeTree();
+    writeTree("./");
     break;
 
   case "commit-tree":
