@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const writeBlob = require("./writeBlob");
-const { writeGitObject, createTreeContent } = require("./utils");
+const { writeGitObject, createTreeContent, writeTree } = require("./utils");
 
 function writeFolderAsTree(basePath = "") {
   // Read all files and dir in git dir
