@@ -30,12 +30,11 @@ function writeFolderAsTree(basePath = "") {
   }
 
   // Write content into byte buffer to preserve string structure in byte
-  const { treeHash, treeContents } = createTreeContent(entries);
-  writeGitObject(treeHash, treeContents, basePath);
+  const { hash, content } = createTreeContent(entries, true);
+  writeGitObject(hash, content, gitDirectory);
 
-  if (treeHash) {
-    process.stdout.write(treeHash + "\n");
-    return treeHash;
+  if (hash) {
+    return hash;
   } else {
     throw new Error("Error writing tree, no hash retrieved");
   }
