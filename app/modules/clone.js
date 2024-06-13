@@ -23,7 +23,7 @@ const {
 } = require("./utils");
 const { Hash } = require("node:crypto");
 
-clone("https://github.com/codecrafters-io/git-sample-2", "test");
+//clone("https://github.com/codecrafters-io/git-sample-2", "test");
 
 async function clone(url, directory) {
   const gitDir = path.resolve(directory);

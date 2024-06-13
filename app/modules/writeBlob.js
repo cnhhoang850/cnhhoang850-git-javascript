@@ -1,31 +1,28 @@
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const { sha1, writeGitObject } = require("./utils");
 
-function hashBlob(write, fileName, basePath = "") {
-  // Read file
-  const filePath = path.resolve(basePath, fileName);
-
-  // Write git blob
-  let data = fs.readFileSync(filePath).toString();
-
-  // Add header
+function hashBlob(write, fileName) {
+  const filePath = path.resolve(fileName);
+  let data = fs
+    .readFileSync(filePath)
+    .toString()
+    .replace(/(\r\n|\n|\r)/gm, "");
   data = `blob ${data.length}\0` + data;
-  const writeFilePath = sha1(data);
-
-  // Write to directory
-  let hash;
+  const hash = sha1(data);
   if (write) {
-    hash = writeGitObject(writeFilePath, data, basePath);
+    const header = hash.slice(0, 2);
+    const blobName = hash.slice(2);
+    const blobFolder = path.resolve(".git", "objects", header);
+    const blobPath = path.resolve(blobFolder, blobName);
+    if (!fs.existsSync(blobFolder)) {
+      fs.mkdirSync(blobFolder);
+    }
+    let dataCompressed = zlib.deflateSync(data);
+    fs.writeFileSync(blobPath, dataCompressed);
   }
-
-  // Log and return hash
-  if (hash) {
-    //process.stdout.write(hash + '\n') // Append newline here
-    return hash;
-  } else {
-    throw new Error("No hash");
-  }
+  return hash;
 }
 
 module.exports = hashBlob;

@@ -30,12 +30,15 @@ switch (command) {
     break;
 
   case "hash-object":
+    let blobHash;
     switch (argvs.length) {
       case 1:
-        writeBlob(true, argvs[0]);
+        blobHash = writeBlob(true, argvs[0]);
+        console.log(blobHash);
         break;
       case 2:
-        writeBlob(true, argvs[0]);
+        blobHash = writeBlob(true, argvs[1]);
+        console.log(blobHash);
         break;
     }
     break;
@@ -52,7 +55,8 @@ switch (command) {
     break;
 
   case "write-tree":
-    writeTree("./");
+    let treeHash = writeTree("./");
+    process.stdout.write(treeHash);
     break;
 
   case "commit-tree":
