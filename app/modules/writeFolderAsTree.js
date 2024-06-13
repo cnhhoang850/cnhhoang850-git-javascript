@@ -5,7 +5,7 @@ const { writeGitObject, createTreeContent } = require("./utils");
 
 function writeFolderAsTree(basePath = "") {
   // Read all files and dir in git dir
-  const gitDirectory = path.resolve(process.cwd(), basePath);
+  const gitDirectory = basePath ? basePath : process.cwd();
   const filesAndDirs = fs
     .readdirSync(gitDirectory)
     .filter((f) => f !== ".git" && f !== "main.js");
