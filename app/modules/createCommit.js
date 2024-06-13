@@ -59,7 +59,7 @@ function commitObject(
 
   if (hash) {
     process.stdout.write(hash + "\n");
-    console.log("CALLING COMMIT TREE");
+    //    console.log("CALLING COMMIT TREE");
     return hash;
   } else {
     throw new Error("Something wrong during writing commit");
