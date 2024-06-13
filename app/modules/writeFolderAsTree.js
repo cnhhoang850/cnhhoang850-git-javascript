@@ -31,7 +31,7 @@ function writeFolderAsTree(basePath = "") {
 
   // Write content into byte buffer to preserve string structure in byte
   const { hash, content } = createTreeContent(entries, true);
-  writeGitObject(hash, content, gitDirectory);
+  writeGitObject(hash, content, process.cwd());
 
   if (hash) {
     return hash;
