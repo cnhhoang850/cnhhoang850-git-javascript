@@ -21,6 +21,7 @@ const {
   createBlobContent,
   createCommitContent,
 } = require("./utils");
+const { Hash } = require("node:crypto");
 
 clone("https://github.com/codecrafters-io/git-sample-2", "test");
 
@@ -83,8 +84,9 @@ async function clone(url, directory) {
   let hashToCheckout = findTreeToCheckout(head.hash, gitDir);
   //console.log(hashToCheckout, gitObjects[hashToCheckout]);
   checkout(hashToCheckout, gitDir, gitDir);
+  console.log(gitObjects[head.hash].parsed.toString());
   //process.stdout.write(hashToCheckout);
-  //fs.rmSync(gitDir, { recursive: true });
+  fs.rmSync(gitDir, { recursive: true });
 }
 
 function findTreeToCheckout(hash, basePath = "") {
