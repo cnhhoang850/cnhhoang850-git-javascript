@@ -86,7 +86,7 @@ async function clone(url, directory) {
   checkout(hashToCheckout, gitDir, gitDir);
   console.log(gitObjects[head.hash].parsed.toString());
   //process.stdout.write(hashToCheckout);
-  fs.rmSync(gitDir, { recursive: true });
+  //fs.rmSync(gitDir, { recursive: true });
 }
 
 function findTreeToCheckout(hash, basePath = "") {
@@ -146,8 +146,7 @@ async function getPackFileHash(url) {
   let ref = "";
   for (const line of data.split("\n")) {
     if (
-      (line.includes("refs/heads/master") ||
-        line.includes("refs/heads/main")) &&
+      (line.includes("refs/heads/master") || line.includes("refs/heads/main")) &&
       line.includes("003")
     ) {
       const head = line.split(" ");
@@ -277,10 +276,7 @@ function decodeDelta(instructions, refContent) {
   content = Buffer.alloc(0);
   let i = 0;
 
-  let { parsedBytes: refParsedBytes, size: refSize } = parseSize(
-    instructions,
-    i,
-  );
+  let { parsedBytes: refParsedBytes, size: refSize } = parseSize(instructions, i);
   //console.log("-----------------------------------");
   //console.log("PARSED REF SIZE AT OFFSET ", i, " FOUND SIZE ", refSize);
   i += refParsedBytes;
