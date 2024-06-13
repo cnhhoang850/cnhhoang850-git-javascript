@@ -2,6 +2,7 @@ const { writeGitObject, sha1 } = require("./utils");
 const fs = require("fs");
 const crypto = require("crypto");
 const zlib = require("zlib");
+const path = require("path");
 
 function getFormattedUtcOffset() {
   const date = new Date();
