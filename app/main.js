@@ -15,7 +15,7 @@ const base_path = process.cwd();
 
 switch (command) {
   case "init":
-    init();
+    init("./");
     break;
 
   case "cat-file":
