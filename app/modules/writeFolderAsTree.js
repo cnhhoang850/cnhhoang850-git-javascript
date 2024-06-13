@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const writeBlob = require("./writeBlob");
-const { writeGitObject, createTreeContent, writeTree } = require("./utils");
+const { writeGitObject, createTreeContent } = require("./utils");
 
 function writeFolderAsTree(basePath = "") {
   // Read all files and dir in git dir
@@ -24,7 +24,7 @@ function writeFolderAsTree(basePath = "") {
       entries.push({
         mode: 40000,
         name: file,
-        hash: writeTree(path.join(gitDirectory, fullPath)),
+        hash: writeFolderAsTree(path.join(gitDirectory, fullPath)),
       });
     }
   }
