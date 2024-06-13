@@ -84,7 +84,7 @@ async function clone(url, directory) {
   let hashToCheckout = findTreeToCheckout(head.hash, gitDir);
   //console.log(hashToCheckout, gitObjects[hashToCheckout]);
   checkout(hashToCheckout, gitDir, gitDir);
-  console.log(gitObjects[head.hash].parsed.toString());
+  //console.log(gitObjects[head.hash].parsed.toString());
   //process.stdout.write(hashToCheckout);
   //fs.rmSync(gitDir, { recursive: true });
 }
