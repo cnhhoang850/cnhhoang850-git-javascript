@@ -58,7 +58,7 @@ function commitObject(
   const hash = writeGitObject(new_object_path, finalContent, basePath);
 
   if (hash) {
-    process.stdout.write(hash + "\n");
+    process.stdout.write(hash);
     //    console.log("CALLING COMMIT TREE");
     return hash;
   } else {
